@@ -46,13 +46,16 @@ We need to do into **/etc/default/bind9** and change an **options** line to **OP
 The following lines should be added inside the existing **options** block inside **/etc/bind/named.conf.options**:
 
 ```{bash}
-verison "not currently available";
+listen-on port 53 { 127.0.0.1; 10.10.1.1; };
 
-recursion no;
+allow-query { localhost; 10.10.1.0/24; };
 
-querylog yes;
+recursion yes;
 
-allow-transfer { none; };
+forwarders {
+       192.168.1.53;
+       192.168.1.54;
+};
 ```
 Next you need to add a zone to **/etc/bind/named.conf.local** by adding this block:
 
@@ -93,14 +96,13 @@ rke1-3  IN  A 10.10.1.22
 rke1-4  IN  A 10.10.1.23
 rke1-5  IN  A 10.10.1.24
 ```
-
-####
+We have to open the firewall to allow traffic to the DNS server and start the DNS server service.
 
 ```{bash}
 sudo firewall-cmd --permanent --zone=internal --add-port=53/udp
 sudo firewall-cmd --reload
-sudo systemctl enabled named
-sudo systemctl start named
+sudo systemctl enabled bind9
+sudo systemctl start bind9
 ```
 
 *Remember to update the ens18 (external) to use 127.0.0.1 for DNS.*
@@ -110,8 +112,40 @@ We need to provide a DHCP server for the internal network clients. Be sure that 
 clients. 
 
 ```{bash}
-sudo dnf install -y dhcp-server 
-sudo cp dhcpd.conf /etc/dhcp/dhcpd.conf
+sudo apt install -y isc-dhcp-server 
+```
+
+The first thing you need to do is to establish what interface to listen on for the DHCP server. You can so this by setting the correct interface (ens19 in my case) in **/etc/default/isc-dhcp-server**.
+
+Next some changes need to be made **/etc/dhcp/dhcpd.conf**:
+
+```{bash}
+option domain-name "rancher.local";
+option domain-name-servers services.rancher.local;
+
+default-lease-time 600;
+max-lease-time 7200;
+
+ddns-update-style none;
+
+authoritative;
+
+subnet 10.10.1.1 netmask 255.255.255.0 {
+option routers 10.10.1.1;
+option subnet-mask 255.255.255.0;
+option domain-name "rancher.local";
+range 10.10.10.100 10.10.199;
+}
+
+#Add these for all your clients
+host rancher-1 {
+ hardware ethernet 00:00:00:00:00:00;
+ fixed-address 10.10.1.10;
+}
+```
+Now we have to add the DHCP service to the firewall and start the DHCP service.
+
+```{bash}
 sudo firewall-cmd --permanent --zone=internal --add-service=dhcp
 sudo firewall-cmd --reload
 sudo systemctl enable dhcpd
@@ -121,21 +155,71 @@ sudo systemctl starrt dhcpd
 ### Loadbalancer
 We are going to use HAProxy as the load balancer between the control planes and between the compute nodes. The services VM will act as the load balancer and redirect requests to the various APIs to the proper nodes.
 
-We need to install 
 ```{bash}
-sudo dnf install haproxy -y
-sudo cp haproxy.cfg /etc/haproxy/haproxy.cfg
+sudo apt install haproxy
+```
 
-sudo setsebool -P haproxy_connect_any 1
+Replace the contents of **/etc/haproxy/haproxy.cfg** with what is below:
+
+```{bash}
+global
+    maxconn     20000
+    log         /dev/log local0 info
+    chroot      /var/lib/haproxy
+    pidfile     /var/run/haproxy.pid
+    user        haproxy
+    group       haproxy
+    daemon
+
+    stats socket /var/lib/haproxy/stats
+
+defaults
+    mode                    http
+    log                     global
+    option                  httplog
+    option                  dontlognull
+    option http-server-close
+    option forwardfor       except 127.0.0.0/8
+    option                  redispatch
+    retries                 3
+    timeout http-request    10s
+    timeout queue           1m
+    timeout connect         10s
+    timeout client          300s
+    timeout server          300s
+    timeout http-keep-alive 10s
+    timeout check           10s
+    maxconn                 20000
+
+listen stats
+    bind :9000
+    mode http
+    stats enable
+    stats uri /
+
+#Define services as needed
+frontend rancher_http_fe
+    bind :80
+    default_backend rancher_http_be
+    mode tcp
+    option tcplog
+
+backend rancher_http_be
+    balance source
+    mode tcp
+    server rancher-1 10.10.1.10 check
+    server rancher-2 10.10.1.11 check
+    server rancher-3 10.10.1.12 check
+```
+Finally open the firewall and start the service:
+
+```{bash}
+sudo firewall-cmd --permanent --add-port=9000/tcp
+sudo firewall-cmd --permanent --add-port=80/tcp
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --reload
 sudo systemctl enable haproxy
 sudo systemctl start haproxy
-sudo systemctl status haproxy
-
-sudo firewall-cmd --permanent --add-port=6443/tcp
-sudo firewall-cmd --permanent --add-port=22623/tcp
-sudo firewall-cmd --permanent --add-service=http
-sudo firewall-cmd --permanent --add-service=https
-sudo firewall-cmd --reload
 ```
 
       
