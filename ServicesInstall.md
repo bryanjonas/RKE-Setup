@@ -207,9 +207,9 @@ frontend rancher_http_fe
 backend rancher_http_be
     balance source
     mode tcp
-    server rancher-1 10.10.1.10 check
-    server rancher-2 10.10.1.11 check
-    server rancher-3 10.10.1.12 check
+    server rancher-1 10.10.1.10:80 check
+    server rancher-2 10.10.1.11:80 check
+    server rancher-3 10.10.1.12:80 check
 ```
 
 Finally open the firewall and start the service:
