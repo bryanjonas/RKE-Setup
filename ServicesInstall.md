@@ -63,7 +63,6 @@ Next you need to add a zone to **/etc/bind/named.conf.local** by adding this blo
 zone "rancher.local" {
   type master;
   file "/etc/bind/db.rancher.local";
-  allow-query { any; };
 ```
 
 Of course we then need to add the configuration for that zone but creating a file at **/etc/bind/db.rancher.local** with these contents:
@@ -115,7 +114,7 @@ clients.
 sudo apt install -y isc-dhcp-server 
 ```
 
-The first thing you need to do is to establish what interface to listen on for the DHCP server. You can so this by setting the correct interface (ens19 in my case) in **/etc/default/isc-dhcp-server**.
+The first thing you need to do is to establish what interface to listen on for the DHCP server. You can so this by setting the correct interface (ens19 in my case) in **/etc/default/isc-dhcp-server** as well as uncommenting the lines pointing to the DHCP configuration and PID for IPv4.
 
 Next some changes need to be made **/etc/dhcp/dhcpd.conf**:
 
@@ -130,11 +129,12 @@ ddns-update-style none;
 
 authoritative;
 
-subnet 10.10.1.1 netmask 255.255.255.0 {
+subnet 10.10.1.0 netmask 255.255.255.0 {
 option routers 10.10.1.1;
 option subnet-mask 255.255.255.0;
 option domain-name "rancher.local";
-range 10.10.10.100 10.10.199;
+option domain-name-servers 10.10.1.1;
+range 10.10.1.100 10.10.1.199;
 }
 
 #Add these for all your clients
@@ -211,6 +211,7 @@ backend rancher_http_be
     server rancher-2 10.10.1.11 check
     server rancher-3 10.10.1.12 check
 ```
+
 Finally open the firewall and start the service:
 
 ```{bash}
@@ -222,4 +223,5 @@ sudo systemctl enable haproxy
 sudo systemctl start haproxy
 ```
 
+This should be all of the services necessary for this VM.
       
