@@ -2,7 +2,7 @@
 
 ## Create Node Template
 
-In order to set up a highly-available install of Rancher, you have to establish a RKE cluster (the hard way). This is actually pretty straightforward if you make a node template (or whatever other automation you want to use) and clone it three times.
+In order to set up a highly-available install of Rancher, you have to establish a RKE cluster (the hard way). This is actually pretty straightforward if you make a node template (or whatever other automation you want to use) and clone it three times. After trying this with Debian 10 and running into DNS resolution issues in the pods, I decided to go with what was recommended by Rancher: Ubuntu 16.04.
 
 ### Install Docker
 ```{bash}
@@ -13,15 +13,22 @@ sudo apt-get install \
     gnupg-agent \
     software-properties-common
 
-curl -fsSL https://download.docker.com/linux/debian/gpg | sudo apt-key add -
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 
 sudo add-apt-repository \
-   "deb [arch=amd64] https://download.docker.com/linux/debian \
+   "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
    $(lsb_release -cs) \
    stable"
    
 sudo apt-get update
-sudo apt-get install docker-ce docker-ce-cli containerd.io
+
+#RKE doesn't support the latest version as of writing
+sudo apt-get install docker-ce=5:19.03.14~3-0~ubuntu-xenial \
+    docker-ce-cli=5:19.03.14~3-0~ubuntu-xenial \
+    containerd.io
+
+#Need to add user to docker group
+sudo /usr/sbin/usermod -aG docker route
 ```
 ### Install RKE
 Visit the link below to get the latest release of the RKE client: 
@@ -33,7 +40,7 @@ wget https://github.com/rancher/rke/releases/download/v1.0.14/rke_linux-amd64
 
 chmod +x rke_linux-amd64
 
-mv rke_linux-amd64 /usr/local/bin/rke
+sudo mv rke_linux-amd64 /usr/local/bin/rke
 ```
 
 ### Install Kubectl:
@@ -43,6 +50,18 @@ curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s ht
 chmod +x ./kubectl
 
 sudo mv ./kubectl /usr/local/bin/kubectl
+```
+
+### Installing Helm
+
+The easiest way to install things on RKE cluster is using a Helm chart (if one exists). To install the Rancher server on the RKE cluster, you must first install Helm. **Note:** You'll see mentions of *Tiller* if you look up Helm-stuff. If you are using Helm 3.0+, Tiller is no longer required.
+
+```{bash}
+curl https://baltocdn.com/helm/signing.asc | sudo apt-key add -
+sudo apt-get install apt-transport-https --yes
+echo "deb https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+sudo apt-get update
+sudo apt-get install helm
 ```
 
 ### Clone Nodes and Copy SSH Keys
@@ -72,18 +91,6 @@ rke up
 
 #Add the following line to the ~/.bashrc
 export KUBECONFIG=~/kube_config_cluster.yml
-```
-
-### Installing Helm
-
-The easiest way to install things on RKE cluster is using a Helm chart (if one exists). To install the Rancher server on the RKE cluster, you must first install Helm. **Note:** You'll see mentions of *Tiller* if you look up Helm-stuff. If you are using Helm 3.0+, Tiller is no longer required.
-
-```{bash}
-curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
-
-chmod +x get_helm.sh
-
-./get_helm.sh
 ```
 
 ### Install Rancher
