@@ -1,12 +1,20 @@
-# RKE-Setup
-Rancher and RKE Cluster Setup
+# RKE Cluster Setup
 
-## Node Setup:
-As I only have a single server at home to play with, I stood up several VMs in Proxmox to play with Rancher and RKE. To each VM I gave 4 cores, 8 GB of RAM, and 100 GB of storage. The RKE website doesn't give a minimum hardware configuration so I assumed I would be safe with this setup. THe documentation does mention that most of their testing has been on nodes with Ubuntu 16.04 so I installed the server version of that on each node. 
+The purpose of this document is to set up the machines for Rancher to provision into a cluster. Much like establishing the cluster to host Rancher itself, this will consist of building a node template with several things installed and then cloning that template several times in order to make all the nodes. For an HA cluster, I will create nine nodes: three control planes, three workers and three etcd nodes. 
 
-The actual mechanics of setting up the nodes involved me installing the pre-reqs on a single node and then cloning that four times so save myself some time. The required software includes: Docker, RKE, and kubectl.
+While you can get away with co-locating some of these node roles together, taking this approach will expose you to a fairly complete setup in terms of communication between nodes in your cluster. *If you can dodge a wrench, you can dodge a ball.*
 
-### Docker:
+## Create Node Template
+
+Once again I will use Ubuntu 16.04 for my nodes because of it's confirmed support with RKE. Since my cluster will be used for little more than testing, I will use the following guide for hardware provisioning:
+
+| Node Type | CPUs | RAM | SSD |
+|-----------|------|-----|-----|
+| Control Plane | 4 | 8 GB | 32 GB |
+| ETCD | 4 | 4 GB | 32 GB |
+| Worker | 4 | 8 GB | 32 GB |
+
+### Install Docker
 ```{bash}
 sudo apt-get install \
     apt-transport-https \
@@ -23,45 +31,75 @@ sudo add-apt-repository \
    stable"
    
 sudo apt-get update
-sudo apt-get install docker-ce docker-ce-cli containerd.io
+
+#RKE doesn't support the latest version as of writing
+sudo apt-get install docker-ce=5:19.03.14~3-0~ubuntu-xenial \
+    docker-ce-cli=5:19.03.14~3-0~ubuntu-xenial \
+    containerd.io
+
+#Need to add user to docker group
+sudo /usr/sbin/usermod -aG docker route
 ```
 
-### RKE:
-Visit the link below to get the latest release of the RKE client: 
+### Clone Nodes and Copy SSH Keys
 
-https://github.com/rancher/rke/releases/tag/v1.0.14
-
-### Kubectl:
-```{bash}
-curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl"
-
-chmod +x ./kubectl
-
-sudo mv ./kubectl /usr/local/bin/kubectl
-```
-Once these nodes were cloned the hostnames need to be changed (otherwise they'll all be the same after the cloning) and DHCP reservations need to be assigned. 
-
-**Future Addition:** It's probably best to set up a network segment for these cluster in a similar manner as the OKD4 cluster I set up. 
-
-### SSH Key Exchanges:
-The RKE cluster communicates via SSH so we need to create a SSH key on the origination node (my term for whoever is going to host the Rancher control UI). So on that node we need to run these commands:
+Once I've cloned this node into three and put the new MAC addresses in the DHCP configuration on the Services VM. I will generate a SSH key on **rancher-1** and
+copy that over to the other two nodes to facilitate communication.
 
 ```{bash}
 ssh-keygen
+
+ssh-copy-id route@iterate-through-node-ips
 ```
 
-You can leave all the defaults on this key generation process. Following this, you need to install this key as an acceptable login key for whatever user is going to be your non-root docker user. If your key is named the default (~/.ssh/id_rsa) you can use the command below.
+## Changes to Services VM
+
+To support this new cluster, you will need to make several changes to the configuration files on the Services VM.
+
+### DHCP Reservations
+
+Go into **/etc/dhcp/dhcpd.conf** and add records for each of the new machines.
+
+### DNS Records
+
+In addition to add *A* records for these new machines to **/etc/bind/db.rancher.lan**, we will want to add records to support the load balancing the external communications with the Kubernetes API. Internal load balancing is taken care of with specially deployed pods in the cluster. The first step in this process is to add a DNS record for the cluster:
 
 ```{bash}
-ssh-copy-id username@other-node-ip
+rke1.rancher.lan     IN  A   10.10.1.1
 ```
 
-## Starting the Rancher Control Containers:
+### HAProxy Services
 
-It's very easy to set up the Rancher Control UI by running this command on origination node. 
+After you add this new DNS record, you will have to make some modifications in **/etc/haproxy/haproxy.cfg** to support the load balancing. You need to make modifications to the preexisting services listening on port 443 in order to route based on the domain coming into the proxy.
 
 ```{bash}
-sudo docker run --privileged -d --restart=unless-stopped -p 80:80 -p 443:443 rancher/rancher
+frontend https_fe #Renamed from rancher_https_fe
+    bind *:443
+    #Define hosts
+    acl host host_rancher hdr(host) -i rancher.rancher.lan
+    acl host host_rke1 hdr(host) -i rke1.rancher.lan
+    
+    #Define backends
+    use_backend rancher_https_be if host_rancher
+    use_backend rke1_https_be if host_rke1
+    
+    default_backend rancher_https_be
+    mode tcp
+    option tcplog
+    
+backend rancher_https_be
+    balance source
+    mode tcp
+    server rancher-1 10.10.1.10:443 check
+    server rancher-2 10.10.1.11:443 check
+    server rancher-3 10.10.1.12:442 check
+
+backend rke1_https_be
+    balance source
+    mode tcp
+    server rke1-1 10.10.1.20:6443 check
+    server rke1-2 10.10.1.21:6443 check
+    server rke1-3 10.10.1.22:6443 check
 ```
 
-Once these containers are up you can visit the interface at https://orignating-node-ip and follow the instructions there.
+This should be all you need to get your cluster going!
