@@ -60,24 +60,20 @@ forwarders {
 Next you need to add a zone to **/etc/bind/named.conf.local** by adding this block:
 
 ```{bash}
-zone "rancher.local" {
+zone "rancher.lan" {
   type master;
-  file "/etc/bind/db.rancher.local";
-  
-zone "10.10.1.in-addr.arpa" {
-        type master;
-        file "/etc/bind/db.10.10.1";
-};
+  file "/etc/bind/db.rancher.lan";
+ 
 ```
 
-Of course we then need to add the configuration for that zone but creating a file at **/etc/bind/db.rancher.local** with these contents:
+Of course we then need to add the configuration for that zone but creating a file at **/etc/bind/db.rancher.lan** with these contents:
 
 ```{bash}
 $TTL    86400
-$ORIGIN rancher.local.
+$ORIGIN rancher.lan.
 
 ; Key characteristics of zone
-@       IN      SOA     services.rancher.local. services.rancher.local. (
+@       IN      SOA     services.rancher.lan. admin.rancher.lan. (
                               1         ; Serial
                          604800         ; Refresh
                           86400         ; Retry
@@ -88,46 +84,18 @@ $ORIGIN rancher.local.
         IN      NS      services
 
 ; A records
-services.rancher.local. IN      A       10.10.1.1
+rancher.rancher.lan.    IN     A      10.10.1.1
+services.rancher.lan. IN      A       10.10.1.1
 
-rancher-1.rancher.local.        IN      A       10.10.1.10
-rancher-2.rancher.local.        IN      A       10.10.1.11
-rancher-3.rancher.local.        IN      A       10.10.1.12
+rancher-1.rancher.lan.        IN      A       10.10.1.10
+rancher-2.rancher.lan.        IN      A       10.10.1.11
+rancher-3.rancher.lan.        IN      A       10.10.1.12
 
-rke1-1.rancher.local.   IN      A       10.10.1.20
-rke1-2.rancher.local.   IN      A       10.10.1.21
-rke1-3.rancher.local.   IN      A       10.10.1.22
-rke1-4.rancher.local.   IN      A       10.10.1.23
-rke1-5.rancher.local.   IN      A       10.10.1.24
-```
-
-Now create a file at **/etc/bind/db.10.10.1** with these contents:
-
-```{bash}
-$TTL    604800
-@       IN      SOA     services.rancher.local. admin.rancher.local. (
-                  6     ; Serial
-             604800     ; Refresh
-              86400     ; Retry
-            2419200     ; Expire
-             604800     ; Negative Cache TTL
-)
-
-; name servers - NS records
-    IN      NS      services.rancher.local.
-
-; name servers - PTR records
-1    IN    PTR    services.rancher.local.
-
-; OpenShift Container Platform Cluster - PTR records
-10    IN    PTR    rancher-1.rancher.local.
-11    IN    PTR    rancher-2.rancher.local.
-12    IN    PTR    rancher-3.rancher.local.
-20    IN    PTR    rke1-1.rancher.local.
-21    IN    PTR    rke1-2.rancher.local.
-21    IN    PTR    rke1-3.rancher.local.
-23    IN    PTR    rke1-4.rancher.local.
-24    IN    PTR    rke1-5.rancher.local.
+rke1-1.rancher.lan.   IN      A       10.10.1.20
+rke1-2.rancher.lan.   IN      A       10.10.1.21
+rke1-3.rancher.lan.   IN      A       10.10.1.22
+rke1-4.rancher.lan.   IN      A       10.10.1.23
+rke1-5.rancher.lan.   IN      A       10.10.1.24
 ```
 
 We have to open the firewall to allow traffic to the DNS server and start the DNS server service.
@@ -154,8 +122,8 @@ The first thing you need to do is to establish what interface to listen on for t
 Next some changes need to be made **/etc/dhcp/dhcpd.conf**:
 
 ```{bash}
-option domain-name "rancher.local";
-option domain-name-servers services.rancher.local;
+option domain-name "rancher.lan";
+option domain-name-servers services.rancher.lan;
 
 default-lease-time 600;
 max-lease-time 7200;
@@ -167,7 +135,7 @@ authoritative;
 subnet 10.10.1.0 netmask 255.255.255.0 {
 option routers 10.10.1.1;
 option subnet-mask 255.255.255.0;
-option domain-name "rancher.local";
+option domain-name "rancher.lan";
 option domain-name-servers 10.10.1.1;
 range 10.10.1.100 10.10.1.199;
 }
