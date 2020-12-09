@@ -93,11 +93,11 @@ rke up
 export KUBECONFIG=~/kube_config_cluster.yml
 ```
 
-### Install Rancher
+## Install Rancher
 https://rancher.com/docs/rancher/v2.x/en/installation/install-rancher-on-k8s/
 
 ```{bash}
-helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
+helm repo add rancher-stable https://releases.rancher.com/server-charts/stable
 
 kubectl create namespace cattle-system
 ```
@@ -122,21 +122,9 @@ helm install \
 How we can finally install Rancher:
 
 ```{bash}
-helm install rancher rancher-latest/rancher \
+helm install rancher rancher-stable/rancher \
   --namespace cattle-system \
-  --set hostname=rancher.local
+  --set hostname=rancher.rancher.lan
 ```
 
-
-## Start Rancher
-
-Rancher is very easy to start using the command provided on the Rancher website:
-
-```{bash}
-sudo docker run --privileged -d --restart=unless-stopped -p 80:80 -p 443:443 rancher/rancher
-```
-
-Now you can navigate to **https://10.10.1.10** on your service node (which is why it is the only VM I put a GUI on) and start to get your cluster set up. 
-
-**Reminder:** Got back an add the HTTP and HTTPS service to HAProxy on the Services VM and you can instead visit **https://10.10.1.1** or even the 
-IP for interface on your home network.
+While you are waiting for the deployment to finish, go back an add the HTTP and HTTPS service to HAProxy on the Services VM. Once everything is complete, you can visit **https://rancher.rancher.lan** to start using Rancher. 
