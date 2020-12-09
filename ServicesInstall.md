@@ -63,38 +63,73 @@ Next you need to add a zone to **/etc/bind/named.conf.local** by adding this blo
 zone "rancher.local" {
   type master;
   file "/etc/bind/db.rancher.local";
+  
+zone "10.10.1.in-addr.arpa" {
+        type master;
+        file "/etc/bind/db.10.10.1";
+};
 ```
 
 Of course we then need to add the configuration for that zone but creating a file at **/etc/bind/db.rancher.local** with these contents:
 
 ```{bash}
-$TTL  86400
+$TTL    86400
 $ORIGIN rancher.local.
 
 ; Key characteristics of zone
-@ IN  SOA services.rancher.local.  services.rancher.local. (
-          1
-          604800
-          86400
-          2419200
-          86400 )
+@       IN      SOA     services.rancher.local. services.rancher.local. (
+                              1         ; Serial
+                         604800         ; Refresh
+                          86400         ; Retry
+                        2419200         ; Expire
+                          86400 )       ; Negative Cache TTL
 
 ; Name servers
-@ IN  NS  services.rancher.local.
+        IN      NS      services
 
 ; A records
-; Records for Rancher Cluster
-rancher-1 IN  A 10.10.1.10
-rancher-2 IN  A 10.10.1.11
-rancher-2 IN  A 10.10.1.12
+services.rancher.local. IN      A       10.10.1.1
 
-; Records for RKE Cluster 1
-rke1-1  IN  A 10.10.1.20
-rke1-2  IN  A 10.10.1.21
-rke1-3  IN  A 10.10.1.22
-rke1-4  IN  A 10.10.1.23
-rke1-5  IN  A 10.10.1.24
+rancher-1.rancher.local.        IN      A       10.10.1.10
+rancher-2.rancher.local.        IN      A       10.10.1.11
+rancher-3.rancher.local.        IN      A       10.10.1.12
+
+rke1-1.rancher.local.   IN      A       10.10.1.20
+rke1-2.rancher.local.   IN      A       10.10.1.21
+rke1-3.rancher.local.   IN      A       10.10.1.22
+rke1-4.rancher.local.   IN      A       10.10.1.23
+rke1-5.rancher.local.   IN      A       10.10.1.24
 ```
+
+Now create a file at **/etc/bind/db.10.10.1** with these contents:
+
+```{bash}
+$TTL    604800
+@       IN      SOA     services.rancher.local. admin.rancher.local. (
+                  6     ; Serial
+             604800     ; Refresh
+              86400     ; Retry
+            2419200     ; Expire
+             604800     ; Negative Cache TTL
+)
+
+; name servers - NS records
+    IN      NS      services.rancher.local.
+
+; name servers - PTR records
+1    IN    PTR    services.rancher.local.
+
+; OpenShift Container Platform Cluster - PTR records
+10    IN    PTR    rancher-1.rancher.local.
+11    IN    PTR    rancher-2.rancher.local.
+12    IN    PTR    rancher-3.rancher.local.
+20    IN    PTR    rke1-1.rancher.local.
+21    IN    PTR    rke1-2.rancher.local.
+21    IN    PTR    rke1-3.rancher.local.
+23    IN    PTR    rke1-4.rancher.local.
+24    IN    PTR    rke1-5.rancher.local.
+```
+
 We have to open the firewall to allow traffic to the DNS server and start the DNS server service.
 
 ```{bash}
