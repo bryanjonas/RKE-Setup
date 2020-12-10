@@ -11,5 +11,5 @@ While a single node Rancher server install in a single Docker command, the HA de
 ### Rancher Provisioned RKE Cluster
 **RKEClusterSetup.md** details the sets to establishing a set of nodes for Rancher to provision into a cluster. As the Rancher server itself is hosted on a similar setup, this document shares a lot of the details with the previous.
 
-### Rook/Ceph Status
+### Rook/Ceph Setup
 If you want to use Ceph for shared storage in the cluster, I would recommend using Rook. I've detailed my set up in the document **RookSetup.md**.
