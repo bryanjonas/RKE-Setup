@@ -72,5 +72,30 @@ kubectl create -f cluster.yaml
 
 **Note**: If you utilize kubectl outside of Rancher, you need to sort out your kubeconfig file.
 
+### Testing Ceph Status
+
+You can check the status of the Ceph cluster by deploying the Ceph toolbox pod using the *yaml* here: https://github.com/rook/rook/blob/master/cluster/examples/kubernetes/ceph/toolbox.yaml
+
+```{bash}
+kubectl create -f toolbox.yaml
+
+#Once complete you can get the pod name:
+kubectl get pods -n rook-ceph
+
+#Then get into that container:
+kubectl exec -n rook-ceph -it rook-ceph-tools-xxxxxxxx-xxxx /bin/bash
+
+#Once in the container:
+[root@rook-ceph-tools-xxxxxxxx-xxxx /]# ceph status
+```
+
+### Deploying StorageClass and ReplicaPool
+
+Now you need to add the StorageClass and the ReplicaPool. This is as easy as using another *yaml* provided by Rook on their repository here: https://github.com/rook/rook/blob/master/cluster/examples/kubernetes/ceph/csi/rbd/storageclass.yaml
+
+### Testing with a Persistent Volume Claim (PVC)
+
+The final step here should be to test with a small PVC to see if your storage is automatically provisioned. You can get the *yaml* here: https://github.com/rook/rook/blob/master/cluster/examples/kubernetes/ceph/csi/rbd/pvc.yaml
+
 
 
