@@ -2,8 +2,8 @@
 
 Before you can do any real work on your shiny new cluster, you have to have some persistent storage for configuration or other state-ful tasks. 
 I decided to utilize Rook because of it's integration with Ceph with a well-tested distributed storage solution. Rook offers your cluster access 
-to Ceph's filesystem, block storage, or object storage backends. While object storage is the hotness for cloud stuff, I chose block storage due to 
-the user-friendliness of it's filesystem interaction.
+to Ceph's filesystem, block storage, or object storage backends. While object storage is the hotness for cloud stuff, I chose filesystem storage due to 
+the user-friendliness of it's interaction.
 
 ## Preparing Nodes
 
@@ -89,13 +89,25 @@ kubectl exec -n rook-ceph -it rook-ceph-tools-xxxxxxxx-xxxx /bin/bash
 [root@rook-ceph-tools-xxxxxxxx-xxxx /]# ceph status
 ```
 
-### Deploying StorageClass and ReplicaPool
+### Creating the Filesystem and StorageClass
 
-Now you need to add the StorageClass and the ReplicaPool. This is as easy as using another *yaml* provided by Rook on their repository here: https://github.com/rook/rook/blob/master/cluster/examples/kubernetes/ceph/csi/rbd/storageclass.yaml
+To save a little space, I decided to use "erasure coded" storage so I opted for the *yaml* file here to deploy the filesystem:
+https://github.com/rook/rook/blob/master/cluster/examples/kubernetes/ceph/filesystem-ec.yaml
+
+Here is the *yaml* I used for the storage class: https://github.com/rook/rook/blob/master/cluster/examples/kubernetes/ceph/csi/cephfs/storageclass.yaml
+
+The only change necessary was to turn on the **provisionVolume** option:
+
+```{bash}
+...
+  provisionVolume: "true"
+  pool: myfs-data0 #<--- Already in the file
+...
+```
 
 ### Testing with a Persistent Volume Claim (PVC)
 
-The final step here should be to test with a small PVC to see if your storage is automatically provisioned. You can get the *yaml* here: https://github.com/rook/rook/blob/master/cluster/examples/kubernetes/ceph/csi/rbd/pvc.yaml
+The final step here should be to test with a small PVC to see if your storage is automatically provisioned. You can get the *yaml* here: https://github.com/rook/rook/blob/master/cluster/examples/kubernetes/ceph/csi/cephfs/pvc.yaml
 
 
 
